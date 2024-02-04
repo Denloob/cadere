@@ -39,27 +39,61 @@ func NewBoard(width, height int) Board {
 	return b
 }
 
-func (b Board) ShiftRight(row int) {
+func (b Board) validateRowIndex(row int) error {
+    if row < 0 || row >= len(b) {
+        return errors.New("row index out of range")
+    }
+    return nil
+}
+
+func (b Board) validateColIndex(col int) error {
+    if col < 0 || col >= len(b[0]) {
+        return errors.New("col index out of range")
+    }
+    return nil
+}
+
+func (b Board) ShiftRight(row int) error {
+    if err := b.validateRowIndex(row); err != nil {
+        return err
+    }
+
 	rowlen := len(b[row])
 	b[row] = append([]Tile{tileEmpty}, b[row][:rowlen-1]...)
+    return nil
 }
 
-func (b Board) ShiftLeft(row int) {
+func (b Board) ShiftLeft(row int) error {
+    if err := b.validateRowIndex(row); err != nil {
+        return err
+    }
+
 	b[row] = append(b[row][1:], tileEmpty)
+    return nil
 }
 
-func (b Board) ShiftUp(col int) {
+func (b Board) ShiftUp(col int) error {
+    if err := b.validateColIndex(col); err != nil {
+        return err
+    }
+
 	for row := 0; row < len(b)-1; row++ {
 		b[row][col] = b[row+1][col]
 	}
 	b[len(b)-1][col] = tileEmpty
+    return nil
 }
 
-func (b Board) ShiftDown(col int) {
+func (b Board) ShiftDown(col int) error {
+    if err := b.validateColIndex(col); err != nil {
+        return err
+    }
+
 	for row := len(b) - 1; row > 0; row-- {
 		b[row][col] = b[row-1][col]
 	}
 	b[0][col] = tileEmpty
+    return nil
 }
 
 type Game struct {
