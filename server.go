@@ -4,9 +4,12 @@ import (
 	"html/template"
 	"io"
 	"net/http"
+	"strconv"
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+
+	"github.com/Denloob/cadere/engine"
 )
 
 type Templates struct {
@@ -23,8 +26,22 @@ func newTemplates() *Templates {
 	}
 }
 
-type Board struct {
-	Bo [][]int
+var game = engine.NewGame(engine.NewBoard(3, 3)).AddPlayers(1, 2)
+
+type shiftFunction func(engine.Board, int) error
+
+func shiftFunctionHandler(f shiftFunction) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		index, err := strconv.Atoi(c.FormValue("index"))
+		if err != nil {
+			return c.NoContent(http.StatusBadRequest)
+		}
+
+		if err := f(game.Board, index); err != nil {
+			return c.NoContent(http.StatusBadRequest)
+		}
+		return c.Render(http.StatusOK, "index", game)
+	}
 }
 
 func main() {
@@ -33,9 +50,17 @@ func main() {
 
 	e.Renderer = newTemplates()
 
+    game.Board[0][0] = 1
+    game.Board[0][1] = 2
+
 	e.GET("/", func(c echo.Context) error {
-		return c.Render(http.StatusOK, "index", Board{Bo: [][]int{{1, 2, 3}, {4, 5, 6}, {7, 8, 9}}})
+		return c.Render(http.StatusOK, "index", game)
 	})
+
+	e.POST("/shift/left", shiftFunctionHandler(engine.Board.ShiftLeft))
+	e.POST("/shift/right", shiftFunctionHandler(engine.Board.ShiftRight))
+	e.POST("/shift/up", shiftFunctionHandler(engine.Board.ShiftUp))
+	e.POST("/shift/down", shiftFunctionHandler(engine.Board.ShiftDown))
 
 	e.Logger.Fatal(e.Start(":8080"))
 }
