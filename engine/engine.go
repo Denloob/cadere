@@ -1,0 +1,89 @@
+package engine
+
+import (
+	"errors"
+)
+
+type Tile int
+type Player int
+
+const (
+	tileEmpty Tile = iota
+	/* Anothing else is a player ID */
+)
+
+func (t Tile) IsEmpty() bool {
+	return t == tileEmpty
+}
+
+func (t Tile) ToPlayer() (Player, error) {
+	if t == tileEmpty {
+		return 0, errors.New("tile is empty")
+	}
+
+	return Player(t), nil
+}
+
+func (t Player) ToTile() Tile {
+	return Tile(t)
+}
+
+type Board [][]Tile
+
+func NewBoard(width, height int) Board {
+	b := make([][]Tile, height)
+	for i := range b {
+		b[i] = make([]Tile, width)
+	}
+
+	return b
+}
+
+func (b Board) ShiftRight(row int) {
+	rowlen := len(b[row])
+	b[row] = append([]Tile{tileEmpty}, b[row][:rowlen-1]...)
+}
+
+func (b Board) ShiftLeft(row int) {
+	b[row] = append(b[row][1:], tileEmpty)
+}
+
+func (b Board) ShiftUp(col int) {
+	for row := 0; row < len(b)-1; row++ {
+		b[row][col] = b[row+1][col]
+	}
+	b[len(b)-1][col] = tileEmpty
+}
+
+func (b Board) ShiftDown(col int) {
+	for row := len(b) - 1; row > 0; row-- {
+		b[row][col] = b[row-1][col]
+	}
+	b[0][col] = tileEmpty
+}
+
+type Game struct {
+	Board              Board
+	players            []Player
+	currentPlayerIndex int
+}
+
+func NewGame(board Board) Game {
+	return Game{Board: board}
+}
+
+func (g Game) AddPlayers(players ...Player) Game {
+	g.players = append(g.players, players...)
+
+	return g
+}
+
+func (g Game) CurrentPlayer() Player {
+	return g.players[g.currentPlayerIndex]
+}
+
+func (g *Game) NextPlayer() Player {
+	g.currentPlayerIndex = (g.currentPlayerIndex + 1) % len(g.players)
+
+	return g.CurrentPlayer()
+}
