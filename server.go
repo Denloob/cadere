@@ -54,6 +54,22 @@ func main() {
 		return c.Render(http.StatusOK, "index", game)
 	})
 
+	e.POST("/player/add", func(c echo.Context) error {
+		playerId, errPlayerId := strconv.Atoi(c.FormValue("player"))
+		if errPlayerId != nil {
+			return c.NoContent(http.StatusBadRequest)
+		}
+
+		player := engine.Player(playerId)
+		if game.PlayerExists(player) {
+			return c.NoContent(http.StatusBadRequest)
+		}
+
+		game.AddPlayers(player)
+
+		return c.NoContent(http.StatusOK)
+	})
+
 	e.PUT("/tile/put", func(c echo.Context) error {
 		row, errRow := strconv.Atoi(c.FormValue("row"))
 		col, errCol := strconv.Atoi(c.FormValue("col"))
