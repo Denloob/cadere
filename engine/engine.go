@@ -53,6 +53,22 @@ func (b Board) validateColIndex(col int) error {
     return nil
 }
 
+func (b Board) Put(row, col int, tile Tile) error {
+    if err := b.validateRowIndex(row); err != nil {
+        return err
+    }
+    if err := b.validateColIndex(col); err != nil {
+        return err
+    }
+
+    if !b[row][col].IsEmpty() {
+        return errors.New("tile already occupied")
+    }
+
+    b[row][col] = tile
+    return nil
+}
+
 func (b Board) ShiftRight(row int) error {
     if err := b.validateRowIndex(row); err != nil {
         return err
@@ -120,4 +136,14 @@ func (g *Game) NextPlayer() Player {
 	g.currentPlayerIndex = (g.currentPlayerIndex + 1) % len(g.players)
 
 	return g.CurrentPlayer()
+}
+
+func (g Game) PlayerExists(player Player) bool {
+    for _, p := range g.players {
+        if p == player {
+            return true
+        }
+    }
+
+    return false
 }
