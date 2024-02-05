@@ -122,10 +122,8 @@ func NewGame(board Board) Game {
 	return Game{Board: board}
 }
 
-func (g Game) AddPlayers(players ...Player) Game {
+func (g *Game) AddPlayers(players ...Player) {
 	g.players = append(g.players, players...)
-
-	return g
 }
 
 func (g Game) CurrentPlayer() Player {

@@ -26,7 +26,7 @@ func newTemplates() *Templates {
 	}
 }
 
-var game = engine.NewGame(engine.NewBoard(3, 3)).AddPlayers(1, 2)
+var game = engine.NewGame(engine.NewBoard(3, 3))
 
 type shiftFunction func(engine.Board, int) error
 
