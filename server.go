@@ -50,10 +50,27 @@ func main() {
 
 	e.Renderer = newTemplates()
 
-    game.Board[0][0] = 1
-    game.Board[0][1] = 2
-
 	e.GET("/", func(c echo.Context) error {
+		return c.Render(http.StatusOK, "index", game)
+	})
+
+	e.PUT("/tile/put", func(c echo.Context) error {
+		row, errRow := strconv.Atoi(c.FormValue("row"))
+		col, errCol := strconv.Atoi(c.FormValue("col"))
+		playerId, errPlayerId := strconv.Atoi(c.FormValue("player"))
+		if errRow != nil || errCol != nil || errPlayerId != nil {
+			return c.NoContent(http.StatusBadRequest)
+		}
+
+		player := engine.Player(playerId)
+		if !game.PlayerExists(player) {
+			return c.NoContent(http.StatusBadRequest)
+		}
+
+		if err := game.Board.Put(row, col, player.ToTile()); err != nil {
+			return c.NoContent(http.StatusBadRequest)
+		}
+
 		return c.Render(http.StatusOK, "index", game)
 	})
 
