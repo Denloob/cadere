@@ -26,6 +26,11 @@ func newTemplates() *Templates {
 	}
 }
 
+const (
+    GAME_SIZE_MAX = 100
+    GAME_SIZE_MIN = 2
+)
+
 var game = engine.NewGame(engine.NewBoard(3, 3))
 
 type shiftFunction func(engine.Board, int) error
@@ -52,6 +57,17 @@ func main() {
 
 	e.GET("/", func(c echo.Context) error {
 		return c.Render(http.StatusOK, "index", game)
+	})
+
+	e.POST("/game/new", func(c echo.Context) error {
+		size, err := strconv.Atoi(c.FormValue("size"))
+		if err != nil || size < GAME_SIZE_MIN || size > GAME_SIZE_MAX {
+			return c.NoContent(http.StatusBadRequest)
+		}
+
+		game = engine.NewGame(engine.NewBoard(size, size))
+
+		return c.NoContent(http.StatusOK)
 	})
 
 	e.POST("/player/add", func(c echo.Context) error {
