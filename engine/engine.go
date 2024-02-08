@@ -139,6 +139,35 @@ func (g *Game) ProgressStage() {
 	g.stage++
 }
 
+func (g Game) anyTilesOwnedBy(player Player) bool {
+	for _, row := range g.Board {
+		for _, tile := range row {
+			if tile == player.ToTile() {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+func (g Game) Winner() (Player, error) {
+	possibleWinners := []Player{}
+	for _, player := range g.players {
+		if g.anyTilesOwnedBy(player) {
+			possibleWinners = append(possibleWinners, player)
+		}
+	}
+
+	if len(possibleWinners) == 0 {
+		return 0, errors.New("no winner")
+	}
+	if len(possibleWinners) == 1 {
+		return possibleWinners[0], nil
+	}
+	return 0, errors.New("multiple winners")
+}
+
 func NewGame(board Board) Game {
 	return Game{Board: board}
 }
