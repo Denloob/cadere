@@ -112,10 +112,31 @@ func (b Board) ShiftDown(col int) error {
 	return nil
 }
 
+type Stage int
+
+const (
+	StageInit Stage = iota
+	StatePlaying
+	StageOver
+)
+
 type Game struct {
 	Board              Board
+	stage              Stage
 	players            []Player
 	currentPlayerIndex int
+}
+
+func (g Game) Stage() Stage {
+	return g.stage
+}
+
+func (g *Game) ProgressStage() {
+	if g.stage == StageOver {
+		panic("tried to progress an over game")
+	}
+
+	g.stage++
 }
 
 func NewGame(board Board) Game {
