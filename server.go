@@ -55,19 +55,28 @@ func main() {
 
 	e.Renderer = newTemplates()
 
+	e.Static("/css", "css")
+
 	e.GET("/", func(c echo.Context) error {
 		return c.Render(http.StatusOK, "index", game)
 	})
 
-	e.POST("/game/new", func(c echo.Context) error {
+	e.GET("/new", func(c echo.Context) error {
+		return c.Render(http.StatusOK, "new", nil)
+	})
+
+	e.POST("/new", func(c echo.Context) error {
 		size, err := strconv.Atoi(c.FormValue("size"))
+		if err != nil {
+			return c.Render(http.StatusUnprocessableEntity, "newForm", "The entered value is not a number")
+		}
 		if err != nil || size < GAME_SIZE_MIN || size > GAME_SIZE_MAX {
-			return c.NoContent(http.StatusBadRequest)
+			return c.Render(http.StatusUnprocessableEntity, "newForm", "Board cannot be smaller than 2 or larger than 100")
 		}
 
 		game = engine.NewGame(engine.NewBoard(size, size))
 
-		return c.NoContent(http.StatusOK)
+		return c.Redirect(http.StatusFound, "/")
 	})
 
 	e.POST("/player/add", func(c echo.Context) error {
