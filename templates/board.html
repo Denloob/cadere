@@ -1,9 +1,15 @@
 {{ block "board" . }}
   <table hx-target="body">
-    {{ $arrowLeft := "⬅️" }}
-    {{ $arrowRight := "➡️" }}
-    {{ $arrowUp := "⬆️" }}
-    {{ $arrowDown := "⬇️" }}
+    {{ $arrowLeft := "<" }}
+    {{ $arrowRight := ">" }}
+    {{ $arrowUp := "^" }}
+    {{ $arrowDown := "v" }}
+    {{ if eq .Stage StagePlaying }}
+      {{ $arrowLeft = "⬅️" }}
+      {{ $arrowRight = "➡️" }}
+      {{ $arrowUp = "⬆️" }}
+      {{ $arrowDown = "⬇️" }}
+    {{ end }}
 
 
     <tr>
