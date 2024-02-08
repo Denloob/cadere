@@ -22,8 +22,14 @@ func (t *Templates) Render(w io.Writer, name string, data any, c echo.Context) e
 
 func newTemplates() *Templates {
 	return &Templates{
-		templates: template.Must(template.ParseGlob("templates/*.html")),
+		templates: template.Must(template.New("templates").Funcs(stageFuncMap).ParseGlob("templates/*.html")),
 	}
+}
+
+var stageFuncMap = template.FuncMap{
+    "StageInit": func() engine.Stage { return engine.StageInit },
+    "StagePlaying": func() engine.Stage { return engine.StatePlaying },
+    "StageOver": func() engine.Stage { return engine.StageOver },
 }
 
 const (
