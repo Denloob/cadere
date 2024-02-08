@@ -15,32 +15,7 @@
   </head>
   <body>
     <h1>Board:</h1>
-    <table hx-target="body">
-      <tr>
-        <td />
-        {{ range $index, $_ := .Board }}
-        <td hx-post="/shift/down" hx-vals='{ "index": {{$index}} }'>⬇️</td>
-        {{end}}
-      </tr>
-
-      {{ range $row_index, $row := .Board }}
-      <tr>
-        <td hx-post="/shift/right" hx-vals='{ "index": {{$row_index}} }'>➡️</td>
-        {{ range $row }}
-        <td>{{ . }}</td>
-        {{ end }}
-        <td hx-post="/shift/left" hx-vals='{ "index": {{$row_index}} }'>⬅️</td>
-      </tr>
-      {{ end }}
-
-      <tr>
-        <td />
-        {{ range $index, $_ := .Board }}
-        <td hx-post="/shift/up" hx-vals='{ "index": {{$index}} }'>⬆️</td>
-        {{end}}
-      </tr>
-    </table>
-
+    {{ template "board" . }}
     <!--
   <div hx-ext="ws" ws-connect="/chat">
     <form ws-send>
