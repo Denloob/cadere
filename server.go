@@ -27,8 +27,8 @@ func newTemplates() *Templates {
 }
 
 const (
-    GAME_SIZE_MAX = 100
-    GAME_SIZE_MIN = 2
+	GAME_SIZE_MAX = 100
+	GAME_SIZE_MIN = 2
 )
 
 var game = engine.NewGame(engine.NewBoard(3, 3))
