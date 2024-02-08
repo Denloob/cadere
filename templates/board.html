@@ -1,22 +1,31 @@
 {{ block "board" . }}
   <table hx-target="body">
+    {{ $arrowLeft := "⬅️" }}
+    {{ $arrowRight := "➡️" }}
+    {{ $arrowUp := "⬆️" }}
+    {{ $arrowDown := "⬇️" }}
+
+
     <tr>
       <td />
+
       {{ range $index, $_ := .Board }}
-        <td hx-post="/shift/down" hx-vals='{ "index": {{ $index }} }'>⬇️</td>
+        <td hx-post="/shift/down" hx-vals='{ "index": {{ $index }} }'>
+          {{ $arrowDown }}
+        </td>
       {{ end }}
     </tr>
 
     {{ range $row_index, $row := .Board }}
       <tr>
         <td hx-post="/shift/right" hx-vals='{ "index": {{ $row_index }} }'>
-          ➡️
+          {{ $arrowRight }}
         </td>
         {{ range $row }}
           <td>{{ . }}</td>
         {{ end }}
         <td hx-post="/shift/left" hx-vals='{ "index": {{ $row_index }} }'>
-          ⬅️
+          {{ $arrowLeft }}
         </td>
       </tr>
     {{ end }}
@@ -24,8 +33,11 @@
 
     <tr>
       <td />
+
       {{ range $index, $_ := .Board }}
-        <td hx-post="/shift/up" hx-vals='{ "index": {{ $index }} }'>⬆️</td>
+        <td hx-post="/shift/up" hx-vals='{ "index": {{ $index }} }'>
+          {{ $arrowUp }}
+        </td>
       {{ end }}
     </tr>
   </table>
