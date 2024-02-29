@@ -69,6 +69,20 @@ func (b Board) Put(row, col int, tile Tile) error {
 	return nil
 }
 
+func (b Board) CountNonEmptyTiles() int {
+	emptyCount := 0
+	for _, row := range b {
+		for _, tile := range row {
+			if tile.IsEmpty() {
+				emptyCount++
+			}
+		}
+	}
+
+	boardArea := len(b) * len(b[0])
+	return boardArea - emptyCount
+}
+
 func (b Board) ShiftRight(row int) error {
 	if err := b.validateRowIndex(row); err != nil {
 		return err
