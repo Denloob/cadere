@@ -183,6 +183,10 @@ func (g *Game) AddPlayers(players ...Player) error {
 	return nil
 }
 
+func (g Game) PlayerCount() int {
+	return len(g.players)
+}
+
 func (g Game) CurrentPlayer() Player {
 	return g.players[g.currentPlayerIndex]
 }
