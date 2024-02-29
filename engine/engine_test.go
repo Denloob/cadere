@@ -9,7 +9,8 @@ import (
 func TestShiftRight(t *testing.T) {
 	player1 := Player(1)
 	player2 := Player(2)
-	game := NewGame(NewBoard(3, 1)).AddPlayers(player1, player2)
+	game := NewGame(NewBoard(3, 1))
+	game.AddPlayers(player1, player2)
 
 	game.Board[0][0] = Tile(player1)
 	game.Board[0][1] = Tile(player2)
@@ -24,7 +25,8 @@ func TestShiftRight(t *testing.T) {
 func TestShiftLeft(t *testing.T) {
 	player1 := Player(1)
 	player2 := Player(2)
-	game := NewGame(NewBoard(3, 1)).AddPlayers(player1, player2)
+	game := NewGame(NewBoard(3, 1))
+	game.AddPlayers(player1, player2)
 
 	game.Board[0][0] = Tile(player1)
 	game.Board[0][1] = Tile(player2)
@@ -39,7 +41,8 @@ func TestShiftLeft(t *testing.T) {
 func TestShiftUp(t *testing.T) {
 	player1 := Player(1)
 	player2 := Player(2)
-	game := NewGame(NewBoard(1, 3)).AddPlayers(player1, player2)
+	game := NewGame(NewBoard(1, 3))
+	game.AddPlayers(player1, player2)
 
 	game.Board[0][0] = Tile(player1)
 	game.Board[1][0] = Tile(player2)
@@ -54,7 +57,8 @@ func TestShiftUp(t *testing.T) {
 func TestShiftDown(t *testing.T) {
 	player1 := Player(1)
 	player2 := Player(2)
-	game := NewGame(NewBoard(1, 3)).AddPlayers(player1, player2)
+	game := NewGame(NewBoard(1, 3))
+	game.AddPlayers(player1, player2)
 
 	game.Board[0][0] = Tile(player1)
 	game.Board[1][0] = Tile(player2)
