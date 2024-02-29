@@ -11,6 +11,9 @@
       {{ $arrowDown = "⬇️" }}
     {{ end }}
 
+    {{ $isInitStage := eq .Stage StageInit }}
+    {{ $currPlayer := .CurrentPlayer }}
+
 
     <tr>
       <td />
@@ -27,8 +30,15 @@
         <td hx-post="/shift/right" hx-vals='{ "index": {{ $row_index }} }'>
           {{ $arrowRight }}
         </td>
-        {{ range $row }}
-          <td>{{ . }}</td>
+        {{ range $col_index, $col := $row }}
+          <td
+            {{ if $isInitStage }}
+              hx-put="/tile/put" hx-vals='{ "row": {{ $row_index }}, "col":
+            {{ $col_index }}, "player": {{ $currPlayer }} }'
+            {{ end }}
+          >
+            {{ $col }}
+          </td>
         {{ end }}
         <td hx-post="/shift/left" hx-vals='{ "index": {{ $row_index }} }'>
           {{ $arrowLeft }}

@@ -32,17 +32,23 @@ var stageFuncMap = template.FuncMap{
 	"StageOver":    func() engine.Stage { return engine.StageOver },
 }
 
+const SessionCookieName = "player_id"
+
 const (
 	GAME_SIZE_MAX = 100
 	GAME_SIZE_MIN = 2
 )
 
-var game = engine.NewGame(engine.NewBoard(3, 3))
+var game *engine.Game = nil
 
 type shiftFunction func(engine.Board, int) error
 
 func shiftFunctionHandler(f shiftFunction) echo.HandlerFunc {
 	return func(c echo.Context) error {
+		if game == nil {
+			return c.NoContent(http.StatusBadRequest)
+		}
+
 		index, err := strconv.Atoi(c.FormValue("index"))
 		if err != nil {
 			return c.NoContent(http.StatusBadRequest)
@@ -64,6 +70,26 @@ func main() {
 	e.Static("/css", "css")
 
 	e.GET("/", func(c echo.Context) error {
+		if game == nil {
+			return c.Redirect(http.StatusFound, "/new")
+		}
+
+		cookie, err := c.Cookie(SessionCookieName)
+		alreadyJoinedGame := err == nil
+		if !alreadyJoinedGame {
+			return c.Redirect(http.StatusFound, "/join")
+		}
+
+		playerNumber, err := strconv.Atoi(cookie.Value)
+		if err != nil {
+			return c.Redirect(http.StatusFound, "/join")
+		}
+
+		player := engine.Player(playerNumber)
+		if !game.PlayerExists(player) {
+			return c.Redirect(http.StatusFound, "/join")
+		}
+
 		return c.Render(http.StatusOK, "index", game)
 	})
 
@@ -80,44 +106,69 @@ func main() {
 			return c.Render(http.StatusUnprocessableEntity, "newForm", "Board cannot be smaller than 2 or larger than 100")
 		}
 
-		game = engine.NewGame(engine.NewBoard(size, size))
+		tempGame := engine.NewGame(engine.NewBoard(size, size))
+		game = &tempGame
 
 		return c.Redirect(http.StatusFound, "/")
 	})
 
-	e.POST("/player/add", func(c echo.Context) error {
-		playerId, errPlayerId := strconv.Atoi(c.FormValue("player"))
-		if errPlayerId != nil {
-			return c.NoContent(http.StatusBadRequest)
+	e.GET("/join", func(c echo.Context) error {
+		if game == nil {
+			return c.Redirect(http.StatusFound, "/new")
+		}
+		if game.PlayerCount() > game.Board.MaxPlayerCount(engine.MinTilesPerPlayer) {
+			return c.NoContent(http.StatusBadRequest) // TODO: return error `to many players, consider increasing board size`
 		}
 
-		player := engine.Player(playerId)
-		if game.PlayerExists(player) {
-			return c.NoContent(http.StatusBadRequest)
+		playerId := game.PlayerCount() + 1
+		err := game.AddPlayers(engine.Player(playerId))
+		if err != nil {
+			return c.NoContent(http.StatusInternalServerError)
 		}
 
-		game.AddPlayers(player)
+		cookie := &http.Cookie{
+			Name:  SessionCookieName,
+			Value: strconv.Itoa(playerId), // TODO: use a session cookie instead of a number to prevent playing as other playres
+		}
+		c.SetCookie(cookie)
 
-		return c.NoContent(http.StatusOK)
+		return c.Redirect(http.StatusFound, "/")
 	})
 
 	e.PUT("/tile/put", func(c echo.Context) error {
+		if game == nil || game.Stage() != engine.StageInit {
+			return c.NoContent(http.StatusBadRequest)
+		}
+
 		row, errRow := strconv.Atoi(c.FormValue("row"))
 		col, errCol := strconv.Atoi(c.FormValue("col"))
 		playerId, errPlayerId := strconv.Atoi(c.FormValue("player"))
-		if errRow != nil || errCol != nil || errPlayerId != nil {
+		cookie, errCookie := c.Cookie(SessionCookieName)
+		if errRow != nil || errCol != nil || errPlayerId != nil || errCookie != nil {
 			return c.NoContent(http.StatusBadRequest)
 		}
 
 		player := engine.Player(playerId)
-		if !game.PlayerExists(player) {
+		if !game.PlayerExists(player) || cookie.Value != strconv.Itoa(playerId) {
+			// TODO: Respond with a meaningfull error message
 			return c.NoContent(http.StatusBadRequest)
 		}
 
 		if err := game.Board.Put(row, col, player.ToTile()); err != nil {
+			// TODO: Respond with a meaningfull error message
 			return c.NoContent(http.StatusBadRequest)
 		}
 
+		playerCount := game.PlayerCount()
+
+		nonEmptyTileCount := game.Board.CountNonEmptyTiles()
+		fullBoardNonEmptyTiles := playerCount * game.Board.TilesPerPlayerWhen(playerCount)
+
+		if nonEmptyTileCount == fullBoardNonEmptyTiles {
+			game.ProgressStage()
+		}
+
+		game.NextPlayer()
 		return c.Render(http.StatusOK, "index", game)
 	})
 
