@@ -172,8 +172,15 @@ func NewGame(board Board) Game {
 	return Game{Board: board}
 }
 
-func (g *Game) AddPlayers(players ...Player) {
+func (g *Game) AddPlayers(players ...Player) error {
+	for _, player := range players {
+		if player == 0 || g.PlayerExists(player) {
+			return errors.New("invalid player")
+		}
+	}
+
 	g.players = append(g.players, players...)
+	return nil
 }
 
 func (g Game) CurrentPlayer() Player {
