@@ -112,6 +112,27 @@ func (b Board) ShiftDown(col int) error {
 	return nil
 }
 
+const MinTilesPerPlayer = 2
+const MinPlayerCount = 1
+
+func (b Board) TilesPerPlayerWhen(playerCount int) int {
+	if playerCount > b.MaxPlayerCount(MinTilesPerPlayer) || playerCount < MinPlayerCount {
+		panic("invalid amount of players")
+	}
+
+	boardArea := len(b) * len(b[0])
+	return boardArea / playerCount
+}
+
+func (b Board) MaxPlayerCount(tilesPerPlayer int) int {
+	if tilesPerPlayer < MinTilesPerPlayer {
+		panic("too few tiles per player")
+	}
+
+	boardArea := len(b) * len(b[0])
+	return boardArea / tilesPerPlayer
+}
+
 type Stage int
 
 const (
