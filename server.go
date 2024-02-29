@@ -27,9 +27,9 @@ func newTemplates() *Templates {
 }
 
 var stageFuncMap = template.FuncMap{
-    "StageInit": func() engine.Stage { return engine.StageInit },
-    "StagePlaying": func() engine.Stage { return engine.StatePlaying },
-    "StageOver": func() engine.Stage { return engine.StageOver },
+	"StageInit":    func() engine.Stage { return engine.StageInit },
+	"StagePlaying": func() engine.Stage { return engine.StatePlaying },
+	"StageOver":    func() engine.Stage { return engine.StageOver },
 }
 
 const (
