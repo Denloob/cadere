@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"html/template"
 	"io"
 	"net/http"
@@ -9,6 +10,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 
+	"github.com/Denloob/cadere/auth"
 	"github.com/Denloob/cadere/engine"
 )
 
@@ -32,22 +34,56 @@ var stageFuncMap = template.FuncMap{
 	"StageOver":    func() engine.Stage { return engine.StageOver },
 }
 
-const SessionCookieName = "player_id"
+const NonceBitLength = 128
+const SessionCookieName = "game"
 
 const (
 	GAME_SIZE_MAX = 100
 	GAME_SIZE_MIN = 2
 )
 
-var game *engine.Game = nil
+const CreatorPlayerID = 1
+
+type Games map[string]auth.GameSession
+
+var games = make(Games)
+
+func (g Games) AddSession(session auth.GameSession) {
+	g[session.Nonce()] = session
+}
+
+func (g Games) GetSessionForToken(token string) (auth.GameSession, error) {
+	nonce, err := auth.ExtractNonceFromToken(token)
+	if err != nil {
+		return auth.GameSession{}, err
+	}
+
+	session, ok := g[nonce]
+	if !ok {
+		return auth.GameSession{}, errors.New("invalid token")
+	}
+
+	return session, nil
+}
+
+func (g Games) GetSessionForContext(c echo.Context) (auth.GameSession, error) {
+	cookie, err := c.Cookie(SessionCookieName)
+	if err != nil {
+		return auth.GameSession{}, err
+	}
+
+	return g.GetSessionForToken(cookie.Value)
+}
 
 type shiftFunction func(engine.Board, int) error
 
 func shiftFunctionHandler(f shiftFunction) echo.HandlerFunc {
 	return func(c echo.Context) error {
-		if game == nil {
+		session, err := games.GetSessionForContext(c)
+		if err != nil {
 			return c.NoContent(http.StatusBadRequest)
 		}
+		game := session.Game
 
 		index, err := strconv.Atoi(c.FormValue("index"))
 		if err != nil {
@@ -70,24 +106,27 @@ func main() {
 	e.Static("/css", "css")
 
 	e.GET("/", func(c echo.Context) error {
+		cookie, err := c.Cookie(SessionCookieName)
+		if err != nil {
+			return nil
+		}
+
+		session, err := games.GetSessionForToken(cookie.Value)
+		if err != nil {
+			return c.Redirect(http.StatusFound, "/new")
+		}
+		game := session.Game
 		if game == nil {
+			return c.NoContent(http.StatusInternalServerError)
+		}
+
+		player, err := session.ExtractPlayerFromToken(cookie.Value)
+		if err != nil {
 			return c.Redirect(http.StatusFound, "/new")
 		}
 
-		cookie, err := c.Cookie(SessionCookieName)
-		alreadyJoinedGame := err == nil
-		if !alreadyJoinedGame {
-			return c.Redirect(http.StatusFound, "/join")
-		}
-
-		playerNumber, err := strconv.Atoi(cookie.Value)
-		if err != nil {
-			return c.Redirect(http.StatusFound, "/join")
-		}
-
-		player := engine.Player(playerNumber)
 		if !game.PlayerExists(player) {
-			return c.Redirect(http.StatusFound, "/join")
+			return c.NoContent(http.StatusInternalServerError)
 		}
 
 		return c.Render(http.StatusOK, "index", game)
@@ -106,51 +145,88 @@ func main() {
 			return c.Render(http.StatusUnprocessableEntity, "newForm", "Board cannot be smaller than 2 or larger than 100")
 		}
 
-		tempGame := engine.NewGame(engine.NewBoard(size, size))
-		game = &tempGame
+		nonce, err := auth.GenerateNonce(NonceBitLength)
+		if err != nil {
+			return c.NoContent(http.StatusInternalServerError)
+		}
+
+		game := engine.NewGame(engine.NewBoard(size, size))
+		game.AddPlayers(CreatorPlayerID)
+
+		session := auth.NewGameSession(&game, nonce)
+
+		token, err := session.NewTokenForPlayer(CreatorPlayerID)
+		if err != nil {
+			return c.NoContent(http.StatusInternalServerError)
+		}
+
+		c.SetCookie(&http.Cookie{
+			Name:  SessionCookieName,
+			Value: token,
+		})
+
+		games.AddSession(session)
 
 		return c.Redirect(http.StatusFound, "/")
 	})
 
-	e.GET("/join", func(c echo.Context) error {
-		if game == nil {
-			return c.Redirect(http.StatusFound, "/new")
+	e.PUT("/join", func(c echo.Context) error {
+		gameId := c.FormValue("gameId")
+
+		session, ok := games[gameId]
+		if !ok {
+			return c.NoContent(http.StatusNotFound)
 		}
+		game := session.Game
+		if game == nil {
+			return c.NoContent(http.StatusInternalServerError)
+		}
+
 		if game.PlayerCount() > game.Board.MaxPlayerCount(engine.MinTilesPerPlayer) {
 			return c.NoContent(http.StatusBadRequest) // TODO: return error `to many players, consider increasing board size`
 		}
 
-		playerId := game.PlayerCount() + 1
-		err := game.AddPlayers(engine.Player(playerId))
+		player := engine.Player(game.PlayerCount() + 1)
+
+		token, err := session.NewTokenForPlayer(player)
+		if err != nil {
+			return c.NoContent(http.StatusInternalServerError)
+		}
+
+		err = game.AddPlayers(player)
 		if err != nil {
 			return c.NoContent(http.StatusInternalServerError)
 		}
 
 		cookie := &http.Cookie{
 			Name:  SessionCookieName,
-			Value: strconv.Itoa(playerId), // TODO: use a session cookie instead of a number to prevent playing as other playres
+			Value: token,
 		}
 		c.SetCookie(cookie)
 
-		return c.Redirect(http.StatusFound, "/")
+		return c.NoContent(http.StatusOK)
 	})
 
 	e.PUT("/tile/put", func(c echo.Context) error {
-		if game == nil || game.Stage() != engine.StageInit {
+		session, err := games.GetSessionForContext(c)
+		if err != nil || session.Game.Stage() != engine.StageInit {
 			return c.NoContent(http.StatusBadRequest)
 		}
 
 		row, errRow := strconv.Atoi(c.FormValue("row"))
 		col, errCol := strconv.Atoi(c.FormValue("col"))
-		playerId, errPlayerId := strconv.Atoi(c.FormValue("player"))
-		cookie, errCookie := c.Cookie(SessionCookieName)
-		if errRow != nil || errCol != nil || errPlayerId != nil || errCookie != nil {
+		cookie, cookieErr := c.Cookie(SessionCookieName)
+		if errRow != nil || errCol != nil || cookieErr != nil {
+			return c.NoContent(http.StatusBadRequest)
+		}
+		player, err := session.ExtractPlayerFromToken(cookie.Value)
+		if err != nil {
 			return c.NoContent(http.StatusBadRequest)
 		}
 
-		player := engine.Player(playerId)
-		if !game.PlayerExists(player) || cookie.Value != strconv.Itoa(playerId) {
-			// TODO: Respond with a meaningfull error message
+		game := session.Game
+		if game.CurrentPlayer() != player {
+			// TODO: respond with not your turn error
 			return c.NoContent(http.StatusBadRequest)
 		}
 
