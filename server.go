@@ -79,11 +79,24 @@ type shiftFunction func(engine.Board, int) error
 
 func shiftFunctionHandler(f shiftFunction) echo.HandlerFunc {
 	return func(c echo.Context) error {
-		session, err := games.GetSessionForContext(c)
+		cookie, err := c.Cookie(SessionCookieName)
+		if err != nil {
+			return c.NoContent(http.StatusBadRequest)
+		}
+		session, err := games.GetSessionForToken(cookie.Value)
 		if err != nil {
 			return c.NoContent(http.StatusBadRequest)
 		}
 		game := session.Game
+
+		if game.Stage() != engine.StatePlaying {
+			return c.NoContent(http.StatusBadRequest) // TODO: Respond with a meaningfull error
+		}
+
+		player, err := session.ExtractPlayerFromToken(cookie.Value)
+		if err != nil || game.CurrentPlayer() != player {
+			return c.NoContent(http.StatusBadRequest) // TODO: Respond with a meaningfull error
+		}
 
 		index, err := strconv.Atoi(c.FormValue("index"))
 		if err != nil {
@@ -93,6 +106,9 @@ func shiftFunctionHandler(f shiftFunction) echo.HandlerFunc {
 		if err := f(game.Board, index); err != nil {
 			return c.NoContent(http.StatusBadRequest)
 		}
+
+		game.NextPlayer()
+
 		return c.Render(http.StatusOK, "index", game)
 	}
 }
