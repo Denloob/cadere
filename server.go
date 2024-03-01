@@ -109,7 +109,7 @@ func shiftFunctionHandler(f shiftFunction) echo.HandlerFunc {
 
 		game.NextPlayer()
 
-		return c.Render(http.StatusOK, "index", game)
+		return c.Render(http.StatusOK, "index", session)
 	}
 }
 
@@ -145,7 +145,7 @@ func main() {
 			return c.NoContent(http.StatusInternalServerError)
 		}
 
-		return c.Render(http.StatusOK, "index", game)
+		return c.Render(http.StatusOK, "index", session)
 	})
 
 	e.GET("/new", func(c echo.Context) error {
@@ -186,7 +186,7 @@ func main() {
 		return c.Redirect(http.StatusFound, "/")
 	})
 
-	e.PUT("/join", func(c echo.Context) error {
+	e.GET("/join", func(c echo.Context) error {
 		gameId := c.FormValue("gameId")
 
 		session, ok := games[gameId]
@@ -220,7 +220,7 @@ func main() {
 		}
 		c.SetCookie(cookie)
 
-		return c.NoContent(http.StatusOK)
+		return c.Redirect(http.StatusFound, "/")
 	})
 
 	e.PUT("/tile/put", func(c echo.Context) error {
@@ -261,7 +261,7 @@ func main() {
 		}
 
 		game.NextPlayer()
-		return c.Render(http.StatusOK, "index", game)
+		return c.Render(http.StatusOK, "index", session)
 	})
 
 	e.POST("/shift/left", shiftFunctionHandler(engine.Board.ShiftLeft))

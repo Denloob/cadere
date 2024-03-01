@@ -1,34 +1,46 @@
 {{ block "index" . }}
-<!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>htmx Text Post Example</title>
-    <script
-      src="https://unpkg.com/htmx.org@1.9.10"
-      integrity="sha384-D1Kt99CQMDuVetoL1lrYwg5t+9QdHe7NLX/SoJYkXDFfX37iInKRy5xLSi8nO7UC"
-      crossorigin="anonymous"
-    ></script>
-    <script src="https://unpkg.com/htmx.org/dist/ext/ws.js"></script>
-    <style></style>
-  </head>
-  <body>
-    <h1>Board:</h1>
-    {{ template "board" . }}
-    <!--
-  <div hx-ext="ws" ws-connect="/chat">
-    <form ws-send>
-      <div>
-        <input type="text" id="username" name="username" placeholder="username">
-      </div>
+  <!doctype html>
+  <html lang="en">
+    <head>
+      <title>Cadere</title>
+      <meta charset="UTF-8" />
+      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+      <link href="css/style.css" rel="stylesheet" />
+      <script
+        src="https://unpkg.com/htmx.org@1.9.10"
+        integrity="sha384-D1Kt99CQMDuVetoL1lrYwg5t+9QdHe7NLX/SoJYkXDFfX37iInKRy5xLSi8nO7UC"
+        crossorigin="anonymous"
+      ></script>
+      <script src="https://unpkg.com/htmx.org/dist/ext/ws.js"></script>
+    </head>
+    <body>
+      <h1>Board:</h1>
+      {{ template "board" .Game }}
 
-      <div>
-        <input type="text" id="text" name="text" placeholder="Type something...">
-        <button type="submit">Post Text</button>
-      </div>
-    </form>
-  </div>
-  --></body>
-</html>
+
+      <button onclick="copyGameLink()">Copy Invite Link</button>
+      <script>
+        function copyGameLink() {
+          const game_id = "{{ .Nonce }}";
+          const url = `${window.location.origin}/join?gameId=${game_id}`;
+          navigator.clipboard.writeText(url).then(
+            function () {
+              const popup = document.createElement("div");
+              popup.innerHTML = "Copied!";
+              popup.classList.add("popup");
+
+              document.body.appendChild(popup);
+
+              setTimeout(function () {
+                popup.remove();
+              }, 500);
+            },
+            function (err) {
+              alert("Failed to copy URL: " + err);
+            },
+          );
+        }
+      </script>
+    </body>
+  </html>
 {{ end }}
