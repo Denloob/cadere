@@ -1,12 +1,15 @@
 package main
 
 import (
+	"bytes"
 	"errors"
+	"fmt"
 	"html/template"
 	"io"
 	"net/http"
 	"strconv"
 
+	"github.com/gorilla/websocket"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 
@@ -22,20 +25,32 @@ func (t *Templates) Render(w io.Writer, name string, data any, c echo.Context) e
 	return t.templates.ExecuteTemplate(w, name, data)
 }
 
+func (t *Templates) RenderToBytes(name string, data any) ([]byte, error) {
+	var buf bytes.Buffer
+	if err := t.templates.ExecuteTemplate(&buf, name, data); err != nil {
+		return nil, err
+	}
+	return buf.Bytes(), nil
+}
+
 func newTemplates() *Templates {
 	return &Templates{
 		templates: template.Must(template.New("templates").Funcs(stageFuncMap).ParseGlob("templates/*.html")),
 	}
 }
 
+const NonceBitLength = 128
+const SessionCookieName = "game"
+
+var templates = newTemplates()
+
 var stageFuncMap = template.FuncMap{
 	"StageInit":    func() engine.Stage { return engine.StageInit },
 	"StagePlaying": func() engine.Stage { return engine.StatePlaying },
 	"StageOver":    func() engine.Stage { return engine.StageOver },
-}
 
-const NonceBitLength = 128
-const SessionCookieName = "game"
+	"SessionCookieName": func() string { return SessionCookieName },
+}
 
 const (
 	GAME_SIZE_MAX = 100
@@ -43,6 +58,19 @@ const (
 )
 
 const CreatorPlayerID = 1
+
+type GameAction struct {
+	Action string
+
+	// action shift
+	Index     int
+	Direction string
+
+	// action put
+	Row    int
+	Col    int
+	Player engine.Player
+}
 
 type Games map[string]auth.GameSession
 
@@ -77,49 +105,144 @@ func (g Games) GetSessionForContext(c echo.Context) (auth.GameSession, error) {
 
 type shiftFunction func(engine.Board, int) error
 
-func shiftFunctionHandler(f shiftFunction) echo.HandlerFunc {
-	return func(c echo.Context) error {
-		cookie, err := c.Cookie(SessionCookieName)
-		if err != nil {
-			return c.NoContent(http.StatusBadRequest)
-		}
-		session, err := games.GetSessionForToken(cookie.Value)
-		if err != nil {
-			return c.NoContent(http.StatusBadRequest)
-		}
-		game := session.Game
+func shiftWith(shiftFunc shiftFunction, session auth.GameSession, player engine.Player, index int) ([]byte, error) {
+	game := session.Game
 
-		if game.Stage() != engine.StatePlaying {
-			return c.NoContent(http.StatusBadRequest) // TODO: Respond with a meaningfull error
-		}
-
-		player, err := session.ExtractPlayerFromToken(cookie.Value)
-		if err != nil || game.CurrentPlayer() != player {
-			return c.NoContent(http.StatusBadRequest) // TODO: Respond with a meaningfull error
-		}
-
-		index, err := strconv.Atoi(c.FormValue("index"))
-		if err != nil {
-			return c.NoContent(http.StatusBadRequest)
-		}
-
-		if err := f(game.Board, index); err != nil {
-			return c.NoContent(http.StatusBadRequest)
-		}
-
-		game.NextPlayer()
-
-		return c.Render(http.StatusOK, "index", session)
+	if game.Stage() != engine.StatePlaying {
+		return nil, fmt.Errorf("") // TODO: Respond with a meaningfull error
 	}
+
+	if game.CurrentPlayer() != player {
+		return nil, fmt.Errorf("") // TODO: Respond with a meaningfull error
+	}
+
+	if err := shiftFunc(game.Board, index); err != nil {
+		return nil, fmt.Errorf("") // TODO: Respond with a general error
+	}
+
+	game.NextPlayer()
+
+	return templates.RenderToBytes("board", game)
 }
+
+func putTile(session auth.GameSession, player engine.Player, row, col int) ([]byte, error) {
+
+	if session.Game.Stage() != engine.StageInit {
+		return nil, fmt.Errorf("")
+	}
+
+	game := session.Game
+	if game.CurrentPlayer() != player {
+		// TODO: respond with not your turn error
+		return nil, fmt.Errorf("")
+	}
+
+	if err := game.Board.Put(row, col, player.ToTile()); err != nil {
+		// TODO: Respond with a meaningfull error message
+		return nil, fmt.Errorf("")
+	}
+
+	playerCount := game.PlayerCount()
+
+	nonEmptyTileCount := game.Board.CountNonEmptyTiles()
+	fullBoardNonEmptyTiles := playerCount * game.Board.TilesPerPlayerWhen(playerCount)
+
+	if nonEmptyTileCount == fullBoardNonEmptyTiles {
+		game.ProgressStage()
+	}
+
+	game.NextPlayer()
+
+	return templates.RenderToBytes("board", game)
+}
+
+/*
+ * TODO:
+ * Update all sockets of a given game when the its board state updates.
+ */
+
+var upgrader = websocket.Upgrader{}
 
 func main() {
 	e := echo.New()
 	e.Use(middleware.Logger())
 
-	e.Renderer = newTemplates()
+	e.Renderer = templates
 
 	e.Static("/css", "css")
+
+	e.GET("/play", func(c echo.Context) error {
+		ws, err := upgrader.Upgrade(c.Response(), c.Request(), nil)
+		if err != nil {
+			return err
+		}
+		defer ws.Close()
+
+		var session auth.GameSession
+		var player engine.Player
+
+		_, cookieBytes, err := ws.ReadMessage()
+		if err != nil {
+			return err
+		}
+
+		cookie := string(cookieBytes)
+
+		session, err = games.GetSessionForToken(cookie)
+		if err != nil {
+			return err
+		}
+		player, err = session.ExtractPlayerFromToken(cookie)
+		if err != nil {
+			return err
+		}
+
+		boardHTML, err := templates.RenderToBytes("board", session.Game)
+		if err != nil {
+			return err
+		}
+		err = ws.WriteMessage(websocket.TextMessage, boardHTML)
+		if err != nil {
+			return err
+		}
+
+		for {
+			var action GameAction
+			err := ws.ReadJSON(&action)
+			if err != nil {
+				continue
+			}
+
+			var response []byte
+			err = nil
+			switch action.Action {
+			case "shift":
+				switch action.Direction {
+				case "up":
+					response, err = shiftWith(engine.Board.ShiftUp, session, player, action.Index)
+				case "down":
+					response, err = shiftWith(engine.Board.ShiftDown, session, player, action.Index)
+				case "left":
+					response, err = shiftWith(engine.Board.ShiftLeft, session, player, action.Index)
+				case "right":
+					response, err = shiftWith(engine.Board.ShiftRight, session, player, action.Index)
+				}
+			case "put":
+				response, err = putTile(session, player, action.Row, action.Col)
+			default:
+				return fmt.Errorf("unknown action: %s", action.Action)
+			}
+
+			if err != nil {
+				return err // TODO: render error or something
+			}
+
+			err = ws.WriteMessage(websocket.TextMessage, response)
+			if err != nil {
+				return err
+			}
+		}
+	})
 
 	e.GET("/", func(c echo.Context) error {
 		cookie, err := c.Cookie(SessionCookieName)
@@ -222,52 +345,6 @@ func main() {
 
 		return c.Redirect(http.StatusFound, "/")
 	})
-
-	e.PUT("/tile/put", func(c echo.Context) error {
-		session, err := games.GetSessionForContext(c)
-		if err != nil || session.Game.Stage() != engine.StageInit {
-			return c.NoContent(http.StatusBadRequest)
-		}
-
-		row, errRow := strconv.Atoi(c.FormValue("row"))
-		col, errCol := strconv.Atoi(c.FormValue("col"))
-		cookie, cookieErr := c.Cookie(SessionCookieName)
-		if errRow != nil || errCol != nil || cookieErr != nil {
-			return c.NoContent(http.StatusBadRequest)
-		}
-		player, err := session.ExtractPlayerFromToken(cookie.Value)
-		if err != nil {
-			return c.NoContent(http.StatusBadRequest)
-		}
-
-		game := session.Game
-		if game.CurrentPlayer() != player {
-			// TODO: respond with not your turn error
-			return c.NoContent(http.StatusBadRequest)
-		}
-
-		if err := game.Board.Put(row, col, player.ToTile()); err != nil {
-			// TODO: Respond with a meaningfull error message
-			return c.NoContent(http.StatusBadRequest)
-		}
-
-		playerCount := game.PlayerCount()
-
-		nonEmptyTileCount := game.Board.CountNonEmptyTiles()
-		fullBoardNonEmptyTiles := playerCount * game.Board.TilesPerPlayerWhen(playerCount)
-
-		if nonEmptyTileCount == fullBoardNonEmptyTiles {
-			game.ProgressStage()
-		}
-
-		game.NextPlayer()
-		return c.Render(http.StatusOK, "index", session)
-	})
-
-	e.POST("/shift/left", shiftFunctionHandler(engine.Board.ShiftLeft))
-	e.POST("/shift/right", shiftFunctionHandler(engine.Board.ShiftRight))
-	e.POST("/shift/up", shiftFunctionHandler(engine.Board.ShiftUp))
-	e.POST("/shift/down", shiftFunctionHandler(engine.Board.ShiftDown))
 
 	e.Logger.Fatal(e.Start(":8080"))
 }

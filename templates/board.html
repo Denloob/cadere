@@ -1,5 +1,5 @@
 {{ block "board" . }}
-  <table hx-target="body">
+  <table id="game_board" hx-swap-oob="true">
     {{ $arrowLeft := "<" }}
     {{ $arrowRight := ">" }}
     {{ $arrowUp := "^" }}
@@ -19,7 +19,10 @@
       <td />
 
       {{ range $index, $_ := .Board }}
-        <td hx-post="/shift/down" hx-vals='{ "index": {{ $index }} }'>
+        <td
+          ws-send
+          hx-vals='{ "index": {{ $index }}, "action": "shift", "direction": "down" }'
+        >
           {{ $arrowDown }}
         </td>
       {{ end }}
@@ -27,20 +30,26 @@
 
     {{ range $row_index, $row := .Board }}
       <tr>
-        <td hx-post="/shift/right" hx-vals='{ "index": {{ $row_index }} }'>
+        <td
+          ws-send
+          hx-vals='{ "index": {{ $row_index }}, "action": "shift", "direction": "right" }'
+        >
           {{ $arrowRight }}
         </td>
         {{ range $col_index, $col := $row }}
           <td
             {{ if $isInitStage }}
-              hx-put="/tile/put" hx-vals='{ "row": {{ $row_index }}, "col":
-              {{ $col_index }}, "player": {{ $currPlayer }} }'
+              ws-send hx-vals='{ "row": {{ $row_index }}, "col":
+              {{ $col_index }}, "action": "put" }'
             {{ end }}
           >
             {{ $col }}
           </td>
         {{ end }}
-        <td hx-post="/shift/left" hx-vals='{ "index": {{ $row_index }} }'>
+        <td
+          ws-send
+          hx-vals='{ "index": {{ $row_index }}, "action": "shift", "direction": "left" }'
+        >
           {{ $arrowLeft }}
         </td>
       </tr>
@@ -51,7 +60,10 @@
       <td />
 
       {{ range $index, $_ := .Board }}
-        <td hx-post="/shift/up" hx-vals='{ "index": {{ $index }} }'>
+        <td
+          ws-send
+          hx-vals='{ "index": {{ $index }}, "action": "shift", "direction": "up" }'
+        >
           {{ $arrowUp }}
         </td>
       {{ end }}

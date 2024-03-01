@@ -12,11 +12,31 @@
         crossorigin="anonymous"
       ></script>
       <script src="https://unpkg.com/htmx.org/dist/ext/ws.js"></script>
+      <script>
+        function getCookie(name) {
+          let cookie = {};
+          document.cookie.split(";").forEach(function (el) {
+            let split = el.split("=");
+            cookie[split[0].trim()] = split.slice(1).join("=");
+          });
+          return cookie[name];
+        }
+
+        document.addEventListener("DOMContentLoaded", function () {
+          document.body.addEventListener("htmx:wsOpen", function (evt) {
+            const cookieName = "{{ SessionCookieName }}";
+            const cookie = getCookie(cookieName);
+
+            evt.detail.socketWrapper.send(cookie);
+          });
+        });
+      </script>
     </head>
     <body>
       <h1>Board:</h1>
-      {{ template "board" .Game }}
-
+      <div hx-ext="ws" ws-connect="/play">
+        {{ template "board" .Game }}
+      </div>
 
       <button onclick="copyGameLink()">Copy Invite Link</button>
       <script>
