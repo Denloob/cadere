@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"strconv"
+	"sync"
 
 	"github.com/gorilla/websocket"
 	"github.com/labstack/echo/v4"
@@ -72,38 +73,115 @@ type GameAction struct {
 	Player engine.Player
 }
 
-type Games map[string]auth.GameSession
+type WebGameSession struct {
+	socketsMutex *sync.RWMutex
+	Sockets      []*websocket.Conn
 
-var games = make(Games)
-
-func (g Games) AddSession(session auth.GameSession) {
-	g[session.Nonce()] = session
+	SessionMutex *sync.RWMutex
+	Session      auth.GameSession
 }
 
-func (g Games) GetSessionForToken(token string) (auth.GameSession, error) {
+func NewWebGameSession(session auth.GameSession) *WebGameSession {
+	return &WebGameSession{
+		socketsMutex: &sync.RWMutex{},
+		Sockets:      []*websocket.Conn{},
+
+		SessionMutex: &sync.RWMutex{},
+		Session:      session,
+	}
+}
+
+func (w *WebGameSession) AddSocket(conn *websocket.Conn) {
+	w.socketsMutex.Lock()
+	defer w.socketsMutex.Unlock()
+
+	w.Sockets = append(w.Sockets, conn)
+}
+
+func (w *WebGameSession) RemoveSocket(conn *websocket.Conn) {
+	w.socketsMutex.Lock()
+	defer w.socketsMutex.Unlock()
+
+	var new_connections []*websocket.Conn
+	for _, currConn := range w.Sockets {
+		if currConn != conn {
+			new_connections = append(new_connections, currConn)
+		}
+	}
+
+	w.Sockets = new_connections
+}
+
+// FilterForEach Execute f for each element, and remove them if `f` returns false
+func (w *WebGameSession) FilterForEach(f func(conn *websocket.Conn) bool) {
+	w.socketsMutex.Lock()
+	defer w.socketsMutex.Unlock()
+
+	var new_connections []*websocket.Conn
+	for _, currConn := range w.Sockets {
+
+		if f(currConn) {
+			new_connections = append(new_connections, currConn)
+		}
+	}
+
+	w.Sockets = new_connections
+}
+
+type Games map[string]*WebGameSession
+
+var games = make(Games)
+var gamesMutex = sync.RWMutex{}
+
+func (g Games) AddSession(session auth.GameSession) {
+	gamesMutex.Lock()
+	defer gamesMutex.Unlock()
+
+	g[session.Nonce()] = NewWebGameSession(session)
+}
+
+func (g Games) GetWebSessionForToken(token string) (*WebGameSession, error) {
+	gamesMutex.RLock()
+	defer gamesMutex.RUnlock()
+
 	nonce, err := auth.ExtractNonceFromToken(token)
 	if err != nil {
-		return auth.GameSession{}, err
+		return nil, err
 	}
 
 	session, ok := g[nonce]
 	if !ok {
-		return auth.GameSession{}, errors.New("invalid token")
+		return nil, errors.New("invalid token")
 	}
 
 	return session, nil
 }
 
-func (g Games) GetSessionForContext(c echo.Context) (auth.GameSession, error) {
-	cookie, err := c.Cookie(SessionCookieName)
-	if err != nil {
-		return auth.GameSession{}, err
+type shiftFunction func(engine.Board, int) error
+
+func (webSession WebGameSession) ExecuteAction(action GameAction, player engine.Player) (response []byte, err error) {
+	webSession.SessionMutex.Lock()
+	defer webSession.SessionMutex.Unlock()
+
+	session := webSession.Session
+	switch action.Action {
+	case "shift":
+		switch action.Direction {
+		case "up":
+			return shiftWith(engine.Board.ShiftUp, session, player, action.Index)
+		case "down":
+			return shiftWith(engine.Board.ShiftDown, session, player, action.Index)
+		case "left":
+			return shiftWith(engine.Board.ShiftLeft, session, player, action.Index)
+		case "right":
+			return shiftWith(engine.Board.ShiftRight, session, player, action.Index)
+		}
+	case "put":
+		return putTile(session, player, action.Row, action.Col)
 	}
 
-	return g.GetSessionForToken(cookie.Value)
+	return nil, fmt.Errorf("unknown action: %s", action.Action)
 }
-
-type shiftFunction func(engine.Board, int) error
 
 func shiftWith(shiftFunc shiftFunction, session auth.GameSession, player engine.Player, index int) ([]byte, error) {
 	game := session.Game
@@ -156,11 +234,6 @@ func putTile(session auth.GameSession, player engine.Player, row, col int) ([]by
 	return templates.RenderToBytes("board", game)
 }
 
-/*
- * TODO:
- * Update all sockets of a given game when the its board state updates.
- */
-
 var upgrader = websocket.Upgrader{}
 
 func main() {
@@ -178,9 +251,6 @@ func main() {
 		}
 		defer ws.Close()
 
-		var session auth.GameSession
-		var player engine.Player
-
 		_, cookieBytes, err := ws.ReadMessage()
 		if err != nil {
 			return err
@@ -188,11 +258,12 @@ func main() {
 
 		cookie := string(cookieBytes)
 
-		session, err = games.GetSessionForToken(cookie)
+		webSession, err := games.GetWebSessionForToken(cookie)
 		if err != nil {
 			return err
 		}
-		player, err = session.ExtractPlayerFromToken(cookie)
+		session := webSession.Session
+		player, err := session.ExtractPlayerFromToken(cookie)
 		if err != nil {
 			return err
 		}
@@ -206,41 +277,29 @@ func main() {
 			return err
 		}
 
+		webSession.AddSocket(ws)
+		defer webSession.RemoveSocket(ws)
+
 		for {
+
 			var action GameAction
 			err := ws.ReadJSON(&action)
 			if err != nil {
 				continue
 			}
 
-			var response []byte
-			err = nil
-			switch action.Action {
-			case "shift":
-				switch action.Direction {
-				case "up":
-					response, err = shiftWith(engine.Board.ShiftUp, session, player, action.Index)
-				case "down":
-					response, err = shiftWith(engine.Board.ShiftDown, session, player, action.Index)
-				case "left":
-					response, err = shiftWith(engine.Board.ShiftLeft, session, player, action.Index)
-				case "right":
-					response, err = shiftWith(engine.Board.ShiftRight, session, player, action.Index)
-				}
-			case "put":
-				response, err = putTile(session, player, action.Row, action.Col)
-			default:
-				return fmt.Errorf("unknown action: %s", action.Action)
-			}
-
+			response, err := webSession.ExecuteAction(action, player)
 			if err != nil {
 				return err // TODO: render error or something
 			}
 
-			err = ws.WriteMessage(websocket.TextMessage, response)
-			if err != nil {
-				return err
-			}
+			webSession.FilterForEach(func(conn *websocket.Conn) bool {
+				if err = conn.WriteMessage(websocket.TextMessage, response); err == websocket.ErrCloseSent {
+					return false
+				}
+
+				return true
+			})
 		}
 	})
 
@@ -250,10 +309,11 @@ func main() {
 			return nil
 		}
 
-		session, err := games.GetSessionForToken(cookie.Value)
+		webSession, err := games.GetWebSessionForToken(cookie.Value)
 		if err != nil {
 			return c.Redirect(http.StatusFound, "/new")
 		}
+		session := webSession.Session
 		game := session.Game
 		if game == nil {
 			return c.NoContent(http.StatusInternalServerError)
@@ -312,10 +372,11 @@ func main() {
 	e.GET("/join", func(c echo.Context) error {
 		gameId := c.FormValue("gameId")
 
-		session, ok := games[gameId]
+		webSession, ok := games[gameId]
 		if !ok {
 			return c.NoContent(http.StatusNotFound)
 		}
+		session := webSession.Session
 		game := session.Game
 		if game == nil {
 			return c.NoContent(http.StatusInternalServerError)
