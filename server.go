@@ -366,7 +366,8 @@ func main() {
 
 		games.AddSession(session)
 
-		return c.Redirect(http.StatusFound, "/")
+		c.Response().Header().Set("HX-Redirect", "/")
+		return c.NoContent(http.StatusOK)
 	})
 
 	e.GET("/join", func(c echo.Context) error {
