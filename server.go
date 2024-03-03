@@ -306,7 +306,7 @@ func main() {
 	e.GET("/", func(c echo.Context) error {
 		cookie, err := c.Cookie(SessionCookieName)
 		if err != nil {
-			return nil
+			return c.Redirect(http.StatusFound, "/new")
 		}
 
 		webSession, err := games.GetWebSessionForToken(cookie.Value)
