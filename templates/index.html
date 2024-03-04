@@ -1,4 +1,4 @@
-{{ block "index" . }}
+{{ define "header" }}
   <!doctype html>
   <html lang="en">
     <head>
@@ -23,6 +23,13 @@
         }
 
         document.addEventListener("DOMContentLoaded", function () {
+          document.body.addEventListener("htmx:beforeSwap", function (evt) {
+            if (evt.detail.xhr.status === 422) {
+              evt.detail.shouldSwap = true;
+              evt.detail.isError = false;
+            }
+          });
+
           document.body.addEventListener("htmx:wsOpen", function (evt) {
             const cookieName = "{{ SessionCookieName }}";
             const cookie = getCookie(cookieName);
@@ -35,7 +42,7 @@
               evt.detail.event.code === {{ WebsocketCloseProtocolError }} &&
               evt.detail.event.reason === "{{ GameWebsocketErrInvalidToken }}"
             ) {
-              createPopUp(`{{ template "expiredSessionMessage" }}`, -1);
+              createPopUp(`{{ template "expiredSessionMessage" }}`, false);
             }
           });
         });
@@ -45,43 +52,53 @@
          * If the duration is -1, the popup will stay indefinitely.
          *
          * @param {string} innerHTML
-         * @param {number} duration
+         * @param {boolean} fadeout
          */
-        function createPopUp(innerHTML, duration) {
+        function createPopUp(innerHTML, fadeout) {
           const popup = document.createElement("div");
           popup.innerHTML = innerHTML;
           popup.classList.add("popup");
 
-          document.body.appendChild(popup);
-
-          if (duration > 0) {
-            setTimeout(function () {
+          if (fadeout) {
+            popup.classList.add("delayed-fadeout");
+            popup.addEventListener("animationend", function () {
               popup.remove();
-            }, duration);
+            });
           }
-        }
 
-        function copyGameLink() {
-          const game_id = "{{ .Nonce }}";
-          const url = `${window.location.origin}/join?gameId=${game_id}`;
-          navigator.clipboard.writeText(url).then(
-            function () {
-              createPopUp("Copied!", 500);
-            },
-            function (err) {
-              alert("Failed to copy URL: " + err);
-            },
-          );
+          document.body.appendChild(popup);
         }
       </script>
     </head>
     <body>
-      <h1>Board:</h1>
-      <div hx-ext="ws" ws-connect="/play">
-        {{ template "gameScreen" .Game }}
-      </div>
+{{ end }}
+
+{{ define "footer" }}
     </body>
   </html>
+{{ end }}
+
+{{ define "index" }}
+  {{ template "header" }}
+  <script>
+      function copyGameLink() {
+        const game_id = "{{ .Nonce }}";
+        const url = `${window.location.origin}/join?gameId=${game_id}`;
+        navigator.clipboard.writeText(url).then(
+          function () {
+            createPopUp("Copied!", true);
+          },
+          function (err) {
+            alert("Failed to copy URL: " + err);
+          },
+        );
+      }
+  </script>
+  <h1>Board:</h1>
+  <div hx-ext="ws" ws-connect="/play">
+    {{ template "gameScreen" .Game }}
+  </div>
+  {{ template "footer" }}
 {{ end }}
 
 {{ define "gameScreen" }}
@@ -107,14 +124,14 @@
     {{ end }}
   </div>
 
-  <div class="hide popup" id="expiration_notice" />
+  <div class="hide" id="popup"></div>
 {{ end }}
 
 {{ define "expirationNotice" }}
   {{ $expirationTime := . }}
 
 
-  <div class="popup" id="expiration_notice">
+  <div class="popup" id="popup">
     {{ if gt $expirationTime 0 }}
       Your game will expire in {{ $expirationTime }} seconds unless you do an
       action.
@@ -127,4 +144,10 @@
 {{ define "expiredSessionMessage" }}
   Your game has expired.
   <button onclick="window.location.href='/new'">New Game</button>
+{{ end }}
+
+{{ define "errorPopup" }}
+  <div class="error-popup delayed-fadeout" id="popup">
+    {{ . }}
+  </div>
 {{ end }}

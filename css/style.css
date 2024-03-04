@@ -1,4 +1,4 @@
-.error-popup {
+.invalid-input-popup {
   position: absolute;
   margin-left: 5px;
   background-color: #ffcccc;
@@ -9,17 +9,45 @@
   font-size: 0.7em;
 }
 
-.popup {
+.error-popup, .popup {
   position: fixed;
   top: 50%;
   left: 50%;
-  transform: translate(-50%, -50%);
   background-color: #ffffff;
   padding: 10px 20px;
-  border: 1px solid #000000;
   border-radius: 5px;
-  box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.5);
   z-index: 9999;
+  transform: translate(-50%, -50%);
+}
+
+.popup {
+  box-shadow: 0px 0px 10px rgba(0, 0, 0, 0.5);
+  border: 1px solid #000000;
+}
+
+.error-popup {
+  box-shadow: 0px 0px 10px rgba(127, 18, 18, 0.5);
+  background-color: #ffcccc;
+  border: 1px solid #c17854;
+}
+
+.delayed-fadeout {
+  animation: fadeOutDelay 1s forwards;
+}
+
+@keyframes fadeOutDelay {
+  0% {
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
 }
 
 .hide {

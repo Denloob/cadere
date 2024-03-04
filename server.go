@@ -42,6 +42,19 @@ func newTemplates() *Templates {
 	}
 }
 
+type GameError struct {
+	error
+}
+
+func GameErrorf(format string, args ...any) error {
+	return GameError{fmt.Errorf(format, args...)}
+}
+
+var (
+	ErrorBadRequest      = errors.New("bad request")
+	GameErrorNotYourTurn = GameErrorf("It's not your turn")
+)
+
 const NonceBitLength = 128
 const SessionCookieName = "game"
 
@@ -265,11 +278,11 @@ func (webSession WebGameSession) ExecuteAction(action GameAction, player engine.
 func startSession(session auth.GameSession, player engine.Player) ([]byte, error) {
 	game := session.Game
 	if game.Stage() != engine.StageLobby {
-		return nil, fmt.Errorf("game already started")
+		return nil, GameErrorf("Game has already started")
 	}
 
 	if player != CreatorPlayerID {
-		return nil, fmt.Errorf("only creator can start game")
+		return nil, GameErrorf("Only the Host can start the game")
 	}
 
 	session.Game.ProgressStage()
@@ -280,15 +293,15 @@ func shiftWith(shiftFunc shiftFunction, session auth.GameSession, player engine.
 	game := session.Game
 
 	if game.Stage() != engine.StatePlaying {
-		return nil, fmt.Errorf("") // TODO: Respond with a meaningfull error
+		return nil, GameErrorf("The game is not in play yet")
 	}
 
 	if game.CurrentPlayer() != player {
-		return nil, fmt.Errorf("") // TODO: Respond with a meaningfull error
+		return nil, GameErrorNotYourTurn
 	}
 
 	if err := shiftFunc(game.Board, index); err != nil {
-		return nil, fmt.Errorf("") // TODO: Respond with a general error
+		return nil, ErrorBadRequest
 	}
 
 	game.NextPlayer()
@@ -303,18 +316,20 @@ func shiftWith(shiftFunc shiftFunction, session auth.GameSession, player engine.
 func putTile(session auth.GameSession, player engine.Player, row, col int) ([]byte, error) {
 
 	if session.Game.Stage() != engine.StageInit {
-		return nil, fmt.Errorf("")
+		return nil, GameErrorf("Putting new tiles is allowed only in the init stage")
 	}
 
 	game := session.Game
 	if game.CurrentPlayer() != player {
-		// TODO: respond with not your turn error
-		return nil, fmt.Errorf("")
+		return nil, GameErrorNotYourTurn
 	}
 
 	if err := game.Board.Put(row, col, player.ToTile()); err != nil {
-		// TODO: Respond with a meaningfull error message
-		return nil, fmt.Errorf("")
+		if errors.Is(err, engine.ErrorTileOccupied) {
+			return nil, GameErrorf("Tile is already occupied by another player")
+		}
+
+		return nil, ErrorBadRequest
 	}
 
 	playerCount := game.PlayerCount()
@@ -389,7 +404,29 @@ func main() {
 
 			response, err := webSession.ExecuteAction(action, player)
 			if err != nil {
-				return err // TODO: render error or something
+				if errors.Is(err, ErrorBadRequest) {
+					continue
+				}
+
+				var errorPopup []byte
+				var renderErr error
+
+				switch {
+				case errors.Is(err, ErrorBadRequest):
+					continue
+				case errors.As(err, &GameError{}):
+					errorPopup, renderErr = templates.RenderToBytes("errorPopup", err.Error())
+				default:
+					errorPopup, renderErr = templates.RenderToBytes("errorPopup", "Something went wrong")
+				}
+				if renderErr != nil {
+					return renderErr
+				}
+
+				if err := ws.WriteMessage(websocket.TextMessage, errorPopup); err != nil {
+					return err
+				}
+				continue
 			}
 
 			webSession.SetLastActionTimestamp(time.Now().Unix())
@@ -485,11 +522,11 @@ func main() {
 		}
 
 		if game.Stage() != engine.StageLobby {
-			return c.NoContent(http.StatusBadRequest) // TODO: better error
+			return c.Render(http.StatusUnprocessableEntity, "errorPopup", "Game has already started")
 		}
 
 		if game.PlayerCount() > game.Board.MaxPlayerCount(engine.MinTilesPerPlayer) {
-			return c.NoContent(http.StatusBadRequest) // TODO: return error `to many players, consider increasing board size`
+			return c.Render(http.StatusUnprocessableEntity, "errorPopup", "Game is full")
 		}
 
 		player := engine.Player(game.PlayerCount() + 1)

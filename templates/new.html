@@ -1,41 +1,17 @@
 {{ block "new" . }}
-  <!doctype html>
-  <html lang="en">
-    <head>
-      <title>New Shifter Game</title>
-      <meta charset="UTF-8" />
-      <meta name="viewport" content="width=device-width, initial-scale=1" />
-      <link href="css/style.css" rel="stylesheet" />
-      <script
-        src="https://unpkg.com/htmx.org@1.9.10"
-        integrity="sha384-D1Kt99CQMDuVetoL1lrYwg5t+9QdHe7NLX/SoJYkXDFfX37iInKRy5xLSi8nO7UC"
-        crossorigin="anonymous"
-      ></script>
-      <script>
-        document.addEventListener("DOMContentLoaded", function () {
-          document.body.addEventListener("htmx:beforeSwap", function (evt) {
-            if (evt.detail.xhr.status === 422) {
-              evt.detail.shouldSwap = true;
-              evt.detail.isError = false;
-            }
-          });
-        });
-      </script>
-    </head>
-    <body>
-      {{ template "newForm" . }}
-    </body>
-  </html>
-{{ end }}
+  {{ template "header" . }}
 
-{{ block "newForm" . }}
-  <form hx-post="/new" hx-target="body" hx-push-url="true">
-    <div>
-      <input type="text" name="size" placeholder="Board Size" />
-      {{ if . }}
-        <div class="error-popup">{{ . }}</div>
-      {{ end }}
-    </div>
-    <button type="submit">Submit</button>
-  </form>
+  {{ block "newForm" . }}
+    <form hx-post="/new" hx-target="body" hx-push-url="true">
+      <div>
+        <input type="text" name="size" placeholder="Board Size" />
+        {{ if . }}
+          <div class="invalid-input-popup">{{ . }}</div>
+        {{ end }}
+      </div>
+      <button type="submit">Submit</button>
+    </form>
+  {{ end }}
+
+  {{ template "footer" . }}
 {{ end }}

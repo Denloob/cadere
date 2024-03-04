@@ -53,6 +53,8 @@ func (b Board) validateColIndex(col int) error {
 	return nil
 }
 
+var ErrorTileOccupied = errors.New("tile already occupied")
+
 func (b Board) Put(row, col int, tile Tile) error {
 	if err := b.validateRowIndex(row); err != nil {
 		return err
@@ -62,7 +64,7 @@ func (b Board) Put(row, col int, tile Tile) error {
 	}
 
 	if !b[row][col].IsEmpty() {
-		return errors.New("tile already occupied")
+		return ErrorTileOccupied
 	}
 
 	b[row][col] = tile
