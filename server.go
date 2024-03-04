@@ -142,20 +142,26 @@ func (g Games) AddSession(session auth.GameSession) {
 }
 
 func (g Games) GetWebSessionForToken(token string) (*WebGameSession, error) {
-	gamesMutex.RLock()
-	defer gamesMutex.RUnlock()
-
 	nonce, err := auth.ExtractNonceFromToken(token)
 	if err != nil {
 		return nil, err
 	}
 
-	session, ok := g[nonce]
+	session, ok := g.Get(nonce)
 	if !ok {
 		return nil, errors.New("invalid token")
 	}
 
 	return session, nil
+}
+
+func (g Games) Get(nonce string) (*WebGameSession, bool) {
+	gamesMutex.RLock()
+	defer gamesMutex.RUnlock()
+
+	session, ok := g[nonce]
+
+	return session, ok
 }
 
 type shiftFunction func(engine.Board, int) error
@@ -394,7 +400,7 @@ func main() {
 	e.GET("/join", func(c echo.Context) error {
 		gameId := c.FormValue("gameId")
 
-		webSession, ok := games[gameId]
+		webSession, ok := games.Get(gameId)
 		if !ok {
 			return c.NoContent(http.StatusNotFound)
 		}
