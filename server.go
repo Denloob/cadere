@@ -45,6 +45,10 @@ func newTemplates() *Templates {
 const NonceBitLength = 128
 const SessionCookieName = "game"
 
+const (
+	GameWebsocketErrInvalidToken = "invalid token"
+)
+
 var templates = newTemplates()
 
 var stageFuncMap = template.FuncMap{
@@ -54,6 +58,10 @@ var stageFuncMap = template.FuncMap{
 	"StageOver":    func() engine.Stage { return engine.StageOver },
 
 	"SessionCookieName": func() string { return SessionCookieName },
+
+	"GameWebsocketErrInvalidToken": func() string { return GameWebsocketErrInvalidToken },
+
+	"WebsocketCloseProtocolError": func() int { return websocket.CloseProtocolError },
 }
 
 const (
@@ -65,6 +73,8 @@ const (
 )
 
 const CreatorPlayerID = 1
+
+var WebsocketCloseInvalidToken = websocket.FormatCloseMessage(websocket.CloseProtocolError, GameWebsocketErrInvalidToken)
 
 type GameAction struct {
 	Action string
@@ -347,11 +357,13 @@ func main() {
 
 		webSession, err := games.GetWebSessionForToken(cookie)
 		if err != nil {
+			ws.WriteMessage(websocket.CloseMessage, WebsocketCloseInvalidToken)
 			return err
 		}
 		session := webSession.Session
 		player, err := session.ExtractPlayerFromToken(cookie)
 		if err != nil {
+			ws.WriteMessage(websocket.CloseMessage, WebsocketCloseInvalidToken)
 			return err
 		}
 

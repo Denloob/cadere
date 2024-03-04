@@ -29,22 +29,44 @@
 
             evt.detail.socketWrapper.send(cookie);
           });
+
+          document.body.addEventListener("htmx:wsClose", function (evt) {
+            if (
+              evt.detail.event.code === {{ WebsocketCloseProtocolError }} &&
+              evt.detail.event.reason === "{{ GameWebsocketErrInvalidToken }}"
+            ) {
+              createPopUp(`{{ template "expiredSessionMessage" }}`, -1);
+            }
+          });
         });
+
+        /*
+         * Create a popup with an HTML message for a duration of time.
+         * If the duration is -1, the popup will stay indefinitely.
+         *
+         * @param {string} innerHTML
+         * @param {number} duration
+         */
+        function createPopUp(innerHTML, duration) {
+          const popup = document.createElement("div");
+          popup.innerHTML = innerHTML;
+          popup.classList.add("popup");
+
+          document.body.appendChild(popup);
+
+          if (duration > 0) {
+            setTimeout(function () {
+              popup.remove();
+            }, duration);
+          }
+        }
 
         function copyGameLink() {
           const game_id = "{{ .Nonce }}";
           const url = `${window.location.origin}/join?gameId=${game_id}`;
           navigator.clipboard.writeText(url).then(
             function () {
-              const popup = document.createElement("div");
-              popup.innerHTML = "Copied!";
-              popup.classList.add("popup");
-
-              document.body.appendChild(popup);
-
-              setTimeout(function () {
-                popup.remove();
-              }, 500);
+              createPopUp("Copied!", 500);
             },
             function (err) {
               alert("Failed to copy URL: " + err);
@@ -97,8 +119,12 @@
       Your game will expire in {{ $expirationTime }} seconds unless you do an
       action.
     {{ else }}
-      Your game has expired.
-      <button onclick="window.location.href='/new'">New Game</button>
+      {{ template "expiredSessionMessage" }}
     {{ end }}
   </div>
+{{ end }}
+
+{{ define "expiredSessionMessage" }}
+  Your game has expired.
+  <button onclick="window.location.href='/new'">New Game</button>
 {{ end }}
