@@ -150,7 +150,8 @@ func (b Board) MaxPlayerCount(tilesPerPlayer int) int {
 type Stage int
 
 const (
-	StageInit Stage = iota
+	StageLobby Stage = iota
+	StageInit
 	StatePlaying
 	StageOver
 )

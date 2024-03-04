@@ -46,6 +46,7 @@ const SessionCookieName = "game"
 var templates = newTemplates()
 
 var stageFuncMap = template.FuncMap{
+	"StageLobby":   func() engine.Stage { return engine.StageLobby },
 	"StageInit":    func() engine.Stage { return engine.StageInit },
 	"StagePlaying": func() engine.Stage { return engine.StatePlaying },
 	"StageOver":    func() engine.Stage { return engine.StageOver },
@@ -178,9 +179,25 @@ func (webSession WebGameSession) ExecuteAction(action GameAction, player engine.
 		}
 	case "put":
 		return putTile(session, player, action.Row, action.Col)
+	case "start":
+		return startSession(session, player)
 	}
 
 	return nil, fmt.Errorf("unknown action: %s", action.Action)
+}
+
+func startSession(session auth.GameSession, player engine.Player) ([]byte, error) {
+	game := session.Game
+	if game.Stage() != engine.StageLobby {
+		return nil, fmt.Errorf("game already started")
+	}
+
+	if player != CreatorPlayerID {
+		return nil, fmt.Errorf("only creator can start game")
+	}
+
+	session.Game.ProgressStage()
+	return templates.RenderToBytes("gameScreen", session.Game)
 }
 
 func shiftWith(shiftFunc shiftFunction, session auth.GameSession, player engine.Player, index int) ([]byte, error) {
@@ -268,7 +285,7 @@ func main() {
 			return err
 		}
 
-		boardHTML, err := templates.RenderToBytes("board", session.Game)
+		boardHTML, err := templates.RenderToBytes("gameScreen", session.Game)
 		if err != nil {
 			return err
 		}
@@ -381,6 +398,10 @@ func main() {
 		game := session.Game
 		if game == nil {
 			return c.NoContent(http.StatusInternalServerError)
+		}
+
+		if game.Stage() != engine.StageLobby {
+			return c.NoContent(http.StatusBadRequest) // TODO: better error
 		}
 
 		if game.PlayerCount() > game.Board.MaxPlayerCount(engine.MinTilesPerPlayer) {

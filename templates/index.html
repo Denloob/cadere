@@ -30,16 +30,7 @@
             evt.detail.socketWrapper.send(cookie);
           });
         });
-      </script>
-    </head>
-    <body>
-      <h1>Board:</h1>
-      <div hx-ext="ws" ws-connect="/play">
-        {{ template "board" .Game }}
-      </div>
 
-      <button onclick="copyGameLink()">Copy Invite Link</button>
-      <script>
         function copyGameLink() {
           const game_id = "{{ .Nonce }}";
           const url = `${window.location.origin}/join?gameId=${game_id}`;
@@ -61,6 +52,26 @@
           );
         }
       </script>
+    </head>
+    <body>
+      <h1>Board:</h1>
+      <div hx-ext="ws" ws-connect="/play">
+        {{ template "gameScreen" .Game }}
+      </div>
     </body>
   </html>
+{{ end }}
+
+{{ define "gameScreen" }}
+
+  {{ template "board" . }}
+
+
+  <div id="lobby_buttons">
+    {{ if eq .Stage StageLobby }}
+      <button ws-send hx-vals='{ "action": "start" }'>Start</button>
+
+      <button onclick="copyGameLink()">Copy Invite Link</button>
+    {{ end }}
+  </div>
 {{ end }}
