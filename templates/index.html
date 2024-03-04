@@ -64,6 +64,12 @@
 
 {{ define "gameScreen" }}
 
+  <div id="winner">
+    {{ if eq .Stage StageOver }}
+      <h1>Player {{ .Winner }} wins!</h1>
+    {{ end }}
+  </div>
+
   {{ template "board" . }}
 
 

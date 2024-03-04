@@ -217,7 +217,11 @@ func shiftWith(shiftFunc shiftFunction, session auth.GameSession, player engine.
 
 	game.NextPlayer()
 
-	return templates.RenderToBytes("board", game)
+	if _, err := game.Winner(); err == nil {
+		game.ProgressStage()
+	}
+
+	return templates.RenderToBytes("gameScreen", game)
 }
 
 func putTile(session auth.GameSession, player engine.Player, row, col int) ([]byte, error) {
