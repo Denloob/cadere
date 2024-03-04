@@ -82,7 +82,7 @@ const (
 	GAME_SIZE_MIN = 2
 
 	GAME_INACTIVITY_TIMEOUT        = 10 * time.Minute
-	GAME_INACTIVITY_TIMEOUT_NOTICE = 1 * time.Minute
+	GAME_INACTIVITY_TIMEOUT_NOTICE = 1*time.Minute + 30*time.Second
 )
 
 const CreatorPlayerID = 1
