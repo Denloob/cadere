@@ -84,4 +84,21 @@
       <button onclick="window.location.href='/new'">Play Again</button>
     {{ end }}
   </div>
+
+  <div class="hide popup" id="expiration_notice" />
+{{ end }}
+
+{{ define "expirationNotice" }}
+  {{ $expirationTime := . }}
+
+
+  <div class="popup" id="expiration_notice">
+    {{ if gt $expirationTime 0 }}
+      Your game will expire in {{ $expirationTime }} seconds unless you do an
+      action.
+    {{ else }}
+      Your game has expired.
+      <button onclick="window.location.href='/new'">New Game</button>
+    {{ end }}
+  </div>
 {{ end }}

@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strconv"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/labstack/echo/v4"
@@ -57,6 +59,9 @@ var stageFuncMap = template.FuncMap{
 const (
 	GAME_SIZE_MAX = 100
 	GAME_SIZE_MIN = 2
+
+	GAME_INACTIVITY_TIMEOUT        = 10 * time.Minute
+	GAME_INACTIVITY_TIMEOUT_NOTICE = 1 * time.Minute
 )
 
 const CreatorPlayerID = 1
@@ -80,6 +85,16 @@ type WebGameSession struct {
 
 	SessionMutex *sync.RWMutex
 	Session      auth.GameSession
+
+	lastActionTimestamp int64
+}
+
+func (session WebGameSession) LastActionTimestamp() int64 {
+	return atomic.LoadInt64(&session.lastActionTimestamp)
+}
+
+func (session WebGameSession) SetLastActionTimestamp(timestamp int64) {
+	atomic.StoreInt64(&session.lastActionTimestamp, timestamp)
 }
 
 func NewWebGameSession(session auth.GameSession) *WebGameSession {
@@ -89,6 +104,8 @@ func NewWebGameSession(session auth.GameSession) *WebGameSession {
 
 		SessionMutex: &sync.RWMutex{},
 		Session:      session,
+
+		lastActionTimestamp: time.Now().Unix(),
 	}
 }
 
@@ -162,6 +179,49 @@ func (g Games) Get(nonce string) (*WebGameSession, bool) {
 	session, ok := g[nonce]
 
 	return session, ok
+}
+
+func (g Games) CleanupStaleGames() {
+	gamesMutex.Lock()
+	defer gamesMutex.Unlock()
+
+	currentTime := time.Now()
+	for nonce, session := range g {
+
+		lastActionTime := time.Unix(session.LastActionTimestamp(), 0)
+		expirationTime := lastActionTime.Add(GAME_INACTIVITY_TIMEOUT)
+		timeToExpiration := expirationTime.Sub(currentTime)
+
+		if timeToExpiration <= GAME_INACTIVITY_TIMEOUT_NOTICE {
+			expired := timeToExpiration <= 0
+			notice, err := templates.RenderToBytes("expirationNotice", int64(timeToExpiration.Seconds()))
+
+			session.FilterForEach(func(conn *websocket.Conn) bool {
+
+				if err == nil {
+					conn.WriteMessage(websocket.TextMessage, notice)
+				}
+
+				if expired {
+					conn.WriteMessage(websocket.CloseMessage, websocket.FormatCloseMessage(websocket.CloseNoStatusReceived, "Stale game"))
+					conn.Close()
+				}
+
+				return !expired
+			})
+
+			if expired {
+				delete(g, nonce)
+			}
+		}
+	}
+}
+
+func (g Games) CleanupStaleGamesEvery(interval time.Duration) {
+	for {
+		g.CleanupStaleGames()
+		time.Sleep(interval)
+	}
 }
 
 type shiftFunction func(engine.Board, int) error
@@ -320,6 +380,8 @@ func main() {
 				return err // TODO: render error or something
 			}
 
+			webSession.SetLastActionTimestamp(time.Now().Unix())
+
 			webSession.FilterForEach(func(conn *websocket.Conn) bool {
 				if err = conn.WriteMessage(websocket.TextMessage, response); err == websocket.ErrCloseSent {
 					return false
@@ -438,6 +500,8 @@ func main() {
 
 		return c.Redirect(http.StatusFound, "/")
 	})
+
+	go games.CleanupStaleGamesEvery(time.Minute)
 
 	e.Logger.Fatal(e.Start(":8080"))
 }
