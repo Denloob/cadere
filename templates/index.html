@@ -2,7 +2,7 @@
   <!doctype html>
   <html lang="en">
     <head>
-      <title>Cadere</title>
+      <title>Shifter</title>
       <meta charset="UTF-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1.0" />
       <link href="css/style.css" rel="stylesheet" />
@@ -78,6 +78,10 @@
       <button ws-send hx-vals='{ "action": "start" }'>Start</button>
 
       <button onclick="copyGameLink()">Copy Invite Link</button>
+    {{ end }}
+
+    {{ if eq .Stage StageOver }}
+      <button onclick="window.location.href='/new'">Play Again</button>
     {{ end }}
   </div>
 {{ end }}
