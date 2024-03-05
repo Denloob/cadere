@@ -1,4 +1,5 @@
 {{ define "header" }}
+{{ block "headerBase" . }}
   <!doctype html>
   <html lang="en">
     <head>
@@ -70,12 +71,16 @@
         }
       </script>
     </head>
-    <body>
+{{ end }}
+  <body>
 {{ end }}
 
 {{ define "footer" }}
-    </body>
-  </html>
+  </body>
+
+  {{ block "footerBase" . }}
+    </html>
+  {{ end }}
 {{ end }}
 
 {{ define "index" }}

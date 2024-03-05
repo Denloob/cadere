@@ -522,11 +522,11 @@ func main() {
 		}
 
 		if game.Stage() != engine.StageLobby {
-			return c.Render(http.StatusUnprocessableEntity, "errorPopup", "Game has already started")
+			return c.Render(http.StatusUnprocessableEntity, "errorGameFull", "Game has already started")
 		}
 
 		if game.PlayerCount() > game.Board.MaxPlayerCount(engine.MinTilesPerPlayer) {
-			return c.Render(http.StatusUnprocessableEntity, "errorPopup", "Game is full")
+			return c.Render(http.StatusUnprocessableEntity, "errorGameFull", "Game is full")
 		}
 
 		player := engine.Player(game.PlayerCount() + 1)
@@ -548,6 +548,10 @@ func main() {
 		c.SetCookie(cookie)
 
 		return c.Redirect(http.StatusFound, "/")
+	})
+
+	e.GET("/spectate", func(c echo.Context) error {
+		return c.Render(http.StatusNotImplemented, "errorPage", "Error: Not implemented")
 	})
 
 	go games.CleanupStaleGamesEvery(time.Minute)

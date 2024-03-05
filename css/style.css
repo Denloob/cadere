@@ -1,3 +1,14 @@
+:root {
+  --black-blue: #020112;
+  --deep-blue: #13242f;
+  --gray-blue: #2b3f4d;
+  --dark-blue: #2f4858;
+  --lapis-blue: #33658a;
+  --light-blue: #86bbd8;
+  --orange-yellow: #f6ae2d;
+  --orange: #f26419;
+}
+
 .invalid-input-popup {
   position: absolute;
   margin-left: 5px;
@@ -52,4 +63,28 @@
 
 .hide {
   display: none;
+}
+
+.banner {
+  position: fixed;
+  top: 20%;
+  left: 10%;
+  right: 10%;
+  background: linear-gradient(135deg, var(--deep-blue) 1%, var(--gray-blue) 100%);
+  padding: 20px 40px;
+  border-radius: 8px;
+  box-shadow: 0 9px 8px color-mix(in srgb, var(--lapis-blue) 10%, transparent);
+  color: #ffffff;
+  text-align: center;
+}
+
+.banner h1 {
+  margin: 0;
+  font-size: 24px;
+}
+
+.errorPage {
+  background: radial-gradient(ellipse 80% 100% at calc(50% + 0px) calc(20% + 10px), var(--black-blue) 50%,#000 100%);
+  background-size: closest-side;
+  background-attachment: fixed;
 }
