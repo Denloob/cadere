@@ -100,7 +100,7 @@
       }
   </script>
   <h1>Board:</h1>
-  <div hx-ext="ws" ws-connect="/play">
+  <div class="board" hx-ext="ws" ws-connect="/play">
     {{ template "gameScreen" .Game }}
   </div>
   {{ template "footer" }}

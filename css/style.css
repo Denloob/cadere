@@ -88,3 +88,15 @@
   background-size: closest-side;
   background-attachment: fixed;
 }
+
+.board {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+#lobby_buttons {
+  position: relative;
+  left: -25%;
+}
